@@ -355,9 +355,17 @@ export default function App() {
                             >
                               <button 
                                 onClick={() => {
-                                  setCode(report.correctedCode);
-                                  setReport(prev => prev ? { ...prev, success: true, enhancedErrors: [] } : null);
-                                  setPipelineData(null);
+                                  if (report.correctedCode) {
+                                    setCode(report.correctedCode);
+                                    setReport({
+                                      ...report,
+                                      success: true,
+                                      enhancedErrors: []
+                                    });
+                                    // We keep pipelineData so the UI stays in 'content' mode
+                                    // but we can update the assembly/IR if we want, 
+                                    // or just show the success state.
+                                  }
                                 }}
                                 className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden"
                               >
