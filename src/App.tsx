@@ -10,6 +10,7 @@ import { SemanticAnalyzer } from './lib/compiler/semantic';
 import { IRGenerator, Instruction } from './lib/compiler/ir';
 import { Optimizer } from './lib/compiler/optimizer';
 import { CodeGenerator } from './lib/compiler/codegen';
+import { CodeFixer } from './lib/compiler/fixer';
 import { explainCompilerErrors, CompilerErrorReport } from './services/geminiService';
 import { 
   Play, 
@@ -46,6 +47,13 @@ export default function App() {
   const [isSaved, setIsSaved] = useState(false);
   const [showAiCode, setShowAiCode] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  };
 
   useEffect(() => {
     const savedCode = localStorage.getItem('compiler_saved_code');
@@ -118,9 +126,10 @@ export default function App() {
 
     setPipelineData({ ir, optimizedIr, assembly });
 
+    // 7. AI ANALYSIS LAYER (Final Step)
+    setPipelineStatus('AI Analysis & Optimization...');
+    
     try {
-      // 7. AI LAYER (Final Step)
-      setPipelineStatus('AI Analysis & Optimization...');
       const aiResult = await explainCompilerErrors({
         sourceCode: code,
         compilerErrors: allErrors.map(e => ({
@@ -130,6 +139,19 @@ export default function App() {
         }))
       });
 
+      // ALGORITHMIC FIX (Non-AI) - We still use this to ensure the Magic Key is robust
+      const algorithmicFixedCode = CodeFixer.fix(code, allErrors.map(e => ({
+        message: e.message,
+        line: e.line,
+        type: e.type
+      })));
+
+      // We can choose to use AI's corrected code or our algorithmic one.
+      // Let's use AI's if it's successful, otherwise fallback to algorithmic.
+      if (!aiResult.correctedCode || aiResult.correctedCode === code) {
+        aiResult.correctedCode = algorithmicFixedCode;
+      }
+
       // Safety check: if our local compiler found errors, the report should not be "success"
       if (allErrors.length > 0) {
         aiResult.success = false;
@@ -138,6 +160,12 @@ export default function App() {
       setReport(aiResult);
     } catch (err) {
       console.error(err);
+      const algorithmicFixedCode = CodeFixer.fix(code, allErrors.map(e => ({
+        message: e.message,
+        line: e.line,
+        type: e.type
+      })));
+      
       setReport({
         success: allErrors.length === 0,
         enhancedErrors: allErrors.map(e => ({
@@ -146,7 +174,7 @@ export default function App() {
           explanation: e.message,
           suggestions: ["Check your syntax and variable declarations."]
         })),
-        correctedCode: code
+        correctedCode: algorithmicFixedCode
       });
     } finally {
       setIsCompiling(false);
@@ -259,14 +287,27 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <textarea 
-              ref={editorRef}
-              className="flex-1 p-6 font-mono text-sm leading-relaxed resize-none outline-none bg-transparent text-slate-700 placeholder:text-slate-300"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="// Write your code here..."
-              spellCheck={false}
-            />
+            <div className="flex-1 flex overflow-hidden relative">
+              <div 
+                ref={lineNumbersRef}
+                className="w-12 bg-slate-50 border-r border-slate-200 flex flex-col items-end pt-6 pb-6 pr-3 select-none overflow-hidden"
+              >
+                {code.split('\n').map((_, i) => (
+                  <div key={i} className="font-mono text-[14px] leading-relaxed text-slate-300 h-[22.75px]">
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              <textarea 
+                ref={editorRef}
+                className="flex-1 p-6 pt-6 font-mono text-sm leading-relaxed resize-none outline-none bg-transparent text-slate-700 placeholder:text-slate-300 overflow-y-auto"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onScroll={handleScroll}
+                placeholder="// Write your code here..."
+                spellCheck={false}
+              />
+            </div>
           </div>
         </div>
 
@@ -371,10 +412,10 @@ export default function App() {
                               >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-200%] group-hover:animate-[shimmer_2s_infinite] skew-x-12" />
                                 <Zap className="w-5 h-5 fill-current animate-pulse text-yellow-300" />
-                                <span className="drop-shadow-md">Magic Key: Auto-Fix Code</span>
+                                <span className="drop-shadow-md">Magic Key: Algorithmic Auto-Fix</span>
                                 <Sparkles className="w-5 h-5 animate-bounce text-yellow-200" />
                               </button>
-                              <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-tighter">Click to automatically fix errors with inline comments</p>
+                              <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-tighter">Click to automatically fix errors using rule-based compiler logic</p>
                             </motion.div>
                           )}
                         </>

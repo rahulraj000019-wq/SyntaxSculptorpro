@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export interface CompilerErrorReport {
   success: boolean;
@@ -10,17 +10,14 @@ export interface CompilerErrorReport {
     explanation: string;
     suggestions: string[];
   }[];
-  correctedCode: string;
+  correctedCode?: string;
 }
 
 export async function explainCompilerErrors(params: {
   sourceCode: string;
   compilerErrors: { message: string; line: number; type: string }[];
 }, retryCount = 0): Promise<CompilerErrorReport> {
-  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    console.error("Gemini API Key is missing. Please set GEMINI_API_KEY or VITE_GEMINI_API_KEY in your environment.");
+  if (!process.env.GEMINI_API_KEY) {
     return {
       success: params.compilerErrors.length === 0,
       enhancedErrors: params.compilerErrors.map(e => ({
@@ -28,47 +25,23 @@ export async function explainCompilerErrors(params: {
         type: e.type,
         explanation: "AI Analysis is unavailable because the API Key is missing.",
         suggestions: ["Set the GEMINI_API_KEY environment variable in your deployment settings."]
-      })),
-      correctedCode: params.sourceCode
+      }))
     };
   }
   
-  const genAI = new GoogleGenAI({ apiKey });
-  
   const prompt = `
-    ACT AS: A Senior C Compiler Engineer and Tutor.
+    You are an expert C compiler assistant.
     
-    CONTEXT:
-    The user is writing C code in a custom compiler educational tool. 
-    The tool's basic pipeline has identified several errors (Lexical, Syntax, or Semantic).
+    SOURCE CODE:
+    ${params.sourceCode}
+    
+    COMPILER ERRORS:
+    ${JSON.stringify(params.compilerErrors, null, 2)}
     
     YOUR GOAL:
     1. Analyze the source code and the reported errors.
     2. Explain each error clearly so a student can learn.
-    3. CRITICAL: Provide the FULL, CORRECTED version of the source code.
-    4. MAGIC KEY REQUIREMENT: You MUST fix all syntax, lexical, and semantic errors. For example, if a semicolon is missing, you MUST add it. If a variable is undeclared, you MUST declare it.
-    5. FOR EACH FIX: Add a comment on the same line or above the fixed line explaining what was changed (e.g., "// FIXED: Added missing semicolon").
-    
-    STRICT RULES FOR "correctedCode":
-    - It MUST be the full source code.
-    - It MUST be 100% valid C code.
-    - If you return the same code as the input when there are reported errors, you have failed.
-    
-    SOURCE CODE TO FIX:
-    ${params.sourceCode}
-    
-    REPORTED ERRORS:
-    ${JSON.stringify(params.compilerErrors, null, 2)}
-    
-    STRICT REQUIREMENTS FOR "success":
-    - Set "success" to false if there are ANY errors in the source code, even if you fix them in "correctedCode".
-    - Set "success" to true ONLY if the original source code is 100% correct and requires no changes.
-    
-    STRICT REQUIREMENTS FOR "correctedCode":
-    - It MUST be the full source code.
-    - It MUST have all reported errors fixed (e.g., add missing semicolons, declare variables, fix types).
-    - It MUST be valid, compilable C code.
-    - DO NOT return the original code if it contains errors. If you return the original code without fixing the reported errors, you have failed the task.
+    3. Provide a corrected version of the code in the 'correctedCode' field.
     
     OUTPUT FORMAT:
     Return ONLY a JSON object matching this schema:
@@ -87,11 +60,10 @@ export async function explainCompilerErrors(params: {
   `;
 
   try {
-    const response = await genAI.models.generateContent({
+    const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a world-class C compiler expert. Your primary mission is to provide perfectly corrected code with inline comments explaining each fix. You take the user's broken C code and return a version that is 100% correct and includes comments like '// FIXED: ...' for every change made. Never return the original buggy code in the 'correctedCode' field if it has errors.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {
@@ -129,12 +101,10 @@ export async function explainCompilerErrors(params: {
     console.error(`Gemini API Error (Attempt ${retryCount + 1}):`, error);
     
     if (retryCount < 2) {
-      // Small delay before retry
       await new Promise(resolve => setTimeout(resolve, 1000));
       return explainCompilerErrors(params, retryCount + 1);
     }
     
-    // Fallback to basic error reporting if AI fails
     return {
       success: params.compilerErrors.length === 0,
       enhancedErrors: params.compilerErrors.map(e => ({
@@ -142,8 +112,7 @@ export async function explainCompilerErrors(params: {
         type: e.type,
         explanation: e.message,
         suggestions: ["Check your syntax and variable declarations."]
-      })),
-      correctedCode: params.sourceCode
+      }))
     };
   }
 }
