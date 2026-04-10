@@ -367,12 +367,12 @@ export default function App() {
                                     // or just show the success state.
                                   }
                                 }}
-                                className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden"
+                                className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-indigo-200/50 hover:shadow-indigo-300/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden border border-white/20"
                               >
-                                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12" />
-                                <Zap className="w-5 h-5 fill-current animate-pulse" />
-                                <span>Magic Key: Auto-Fix Code</span>
-                                <Sparkles className="w-5 h-5 animate-bounce" />
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-200%] group-hover:animate-[shimmer_2s_infinite] skew-x-12" />
+                                <Zap className="w-5 h-5 fill-current animate-pulse text-yellow-300" />
+                                <span className="drop-shadow-md">Magic Key: Auto-Fix Code</span>
+                                <Sparkles className="w-5 h-5 animate-bounce text-yellow-200" />
                               </button>
                               <p className="text-[10px] text-slate-400 text-center mt-2 uppercase tracking-tighter">Click to automatically fix errors with inline comments</p>
                             </motion.div>

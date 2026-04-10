@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -46,7 +46,13 @@ export async function explainCompilerErrors(params: {
     1. Analyze the source code and the reported errors.
     2. Explain each error clearly so a student can learn.
     3. CRITICAL: Provide the FULL, CORRECTED version of the source code.
-    4. FOR EACH FIX: Add a comment on the same line or above the fixed line explaining what was changed (e.g., "// FIXED: Added missing semicolon").
+    4. MAGIC KEY REQUIREMENT: You MUST fix all syntax, lexical, and semantic errors. For example, if a semicolon is missing, you MUST add it. If a variable is undeclared, you MUST declare it.
+    5. FOR EACH FIX: Add a comment on the same line or above the fixed line explaining what was changed (e.g., "// FIXED: Added missing semicolon").
+    
+    STRICT RULES FOR "correctedCode":
+    - It MUST be the full source code.
+    - It MUST be 100% valid C code.
+    - If you return the same code as the input when there are reported errors, you have failed.
     
     SOURCE CODE TO FIX:
     ${params.sourceCode}
@@ -85,8 +91,9 @@ export async function explainCompilerErrors(params: {
       model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a world-class C compiler expert. Your primary mission is to provide perfectly corrected code with inline comments explaining each fix. You take the user's broken C code and return a version that is 100% correct and includes comments like '// FIXED: ...' for every change made. Never return the original buggy code in the 'correctedCode' field.",
+        systemInstruction: "You are a world-class C compiler expert. Your primary mission is to provide perfectly corrected code with inline comments explaining each fix. You take the user's broken C code and return a version that is 100% correct and includes comments like '// FIXED: ...' for every change made. Never return the original buggy code in the 'correctedCode' field if it has errors.",
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
