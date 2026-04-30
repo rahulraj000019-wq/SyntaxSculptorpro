@@ -11,7 +11,7 @@ import { IRGenerator, Instruction } from './lib/compiler/ir';
 import { Optimizer } from './lib/compiler/optimizer';
 import { CodeGenerator } from './lib/compiler/codegen';
 import { CodeFixer } from './lib/compiler/fixer';
-import { explainCompilerErrors, CompilerErrorReport } from './services/geminiService';
+// Local analysis only, AI service imports removed as per user request
 import { 
   Play, 
   Loader2, 
@@ -37,7 +37,16 @@ export default function App() {
   const [code, setCode] = useState('int x;\nx = 10 + 5 * 2;\nint y;\ny = x + 10;');
   const [isCompiling, setIsCompiling] = useState(false);
   const [pipelineStatus, setPipelineStatus] = useState<string>('');
-  const [report, setReport] = useState<CompilerErrorReport | null>(null);
+  const [report, setReport] = useState<{
+    success: boolean;
+    enhancedErrors: {
+      line: number;
+      type: string;
+      explanation: string;
+      suggestions: string[];
+    }[];
+    correctedCode?: string;
+  } | null>(null);
   const [pipelineData, setPipelineData] = useState<{
     ir: Instruction[];
     optimizedIr: Instruction[];
@@ -126,59 +135,55 @@ export default function App() {
 
     setPipelineData({ ir, optimizedIr, assembly });
 
-    // 7. AI ANALYSIS LAYER (Final Step)
-    setPipelineStatus('AI Analysis & Optimization...');
+    // 7. LOCAL ANALYSIS LAYER (Final Step)
+    setPipelineStatus('Finalizing Analysis...');
     
-    try {
-      const aiResult = await explainCompilerErrors({
-        sourceCode: code,
-        compilerErrors: allErrors.map(e => ({
-          message: e.message,
-          line: e.line,
-          type: e.type
-        }))
-      });
+    // ALGORITHMIC FIX (Non-AI)
+    const algorithmicFixedCode = CodeFixer.fix(code, allErrors.map(e => ({
+      message: e.message,
+      line: e.line,
+      type: e.type
+    })));
 
-      // ALGORITHMIC FIX (Non-AI) - We still use this to ensure the Magic Key is robust
-      const algorithmicFixedCode = CodeFixer.fix(code, allErrors.map(e => ({
-        message: e.message,
-        line: e.line,
-        type: e.type
-      })));
+    // Generate local explanations and suggestions (Algorithmic)
+    const localReport = {
+      success: allErrors.length === 0,
+      enhancedErrors: allErrors.map(e => {
+        let explanation = e.message;
+        let suggestions: string[] = [];
 
-      // We can choose to use AI's corrected code or our algorithmic one.
-      // Let's use AI's if it's successful, otherwise fallback to algorithmic.
-      if (!aiResult.correctedCode || aiResult.correctedCode === code) {
-        aiResult.correctedCode = algorithmicFixedCode;
-      }
+        // Rule-based diagnostic suggestions (Local Analysis)
+        if (e.message.includes('Expected SEMICOLON')) {
+          explanation = "A semicolon is missing at the end of this statement.";
+          suggestions = ["Add a ';' at the end of the line."];
+        } else if (e.message.includes('used before declaration')) {
+          explanation = `The variable is used but has not been declared yet.`;
+          suggestions = ["Declare the variable with a type (e.g., 'int x;') before using it."];
+        } else if (e.message.includes('Expected RBRACE')) {
+          explanation = "A closing brace '}' is missing for this block.";
+          suggestions = ["Add a '}' to close the function or block."];
+        } else if (e.message.includes('Expected LBRACE')) {
+          explanation = "An opening brace '{' is missing.";
+          suggestions = ["Add a '{' to start the block."];
+        } else if (e.message.includes('Unexpected token')) {
+          explanation = "The compiler encountered an unexpected character.";
+          suggestions = ["Check for typos or misplaced characters."];
+        } else {
+          suggestions = ["Review the C syntax rules for this statement."];
+        }
 
-      // Safety check: if our local compiler found errors, the report should not be "success"
-      if (allErrors.length > 0) {
-        aiResult.success = false;
-      }
-      
-      setReport(aiResult);
-    } catch (err) {
-      console.error(err);
-      const algorithmicFixedCode = CodeFixer.fix(code, allErrors.map(e => ({
-        message: e.message,
-        line: e.line,
-        type: e.type
-      })));
-      
-      setReport({
-        success: allErrors.length === 0,
-        enhancedErrors: allErrors.map(e => ({
+        return {
           line: e.line,
           type: e.type,
-          explanation: e.message,
-          suggestions: ["Check your syntax and variable declarations."]
-        })),
-        correctedCode: algorithmicFixedCode
-      });
-    } finally {
-      setIsCompiling(false);
-    }
+          explanation,
+          suggestions
+        };
+      }),
+      correctedCode: algorithmicFixedCode
+    };
+
+    setReport(localReport);
+    setIsCompiling(false);
   }, [code]);
 
   const handleCopy = (text: string) => {
